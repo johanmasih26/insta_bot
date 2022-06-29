@@ -1,4 +1,4 @@
-from .serializers import PostSerializer
+from .serializers import LoginSerializer, PostSerializer, RegisterSerializer
 from django.contrib.auth.hashers import make_password,check_password
 from django.contrib.auth.models import User
 from django.http import HttpResponse
@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import  PostSerializer
 from .models import Post, Vote
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
 class get_posts(APIView):
     def get(self, request):
@@ -23,117 +23,121 @@ class HomeView(View):
     def get(self, request):
         return render(request, 'index.html')
 
+
+
 class LoginView(APIView):
+    permission_classes = [AllowAny]
+
     def post(self, request, *args, **kwargs):
         try:
-            data=request.data
-            if not data.get('email'):return Response({'status_code':str(status.HTTP_400_BAD_REQUEST),'status_message':'email is required'})
-            if not data.get('password'):return Response({'status_code':str(status.HTTP_400_BAD_REQUEST),'status_message':'password is required'})
-            user_obj = User.objects.filter(email=data.get('email')).first()
-            print('####' ,data.get('email'),user_obj)
-            if user_obj:
-                if not check_password(data.get('password'), user_obj.password):
-                    return Response({'status_code':str(status.HTTP_400_BAD_REQUEST),'status_message':'password not valid !'})                   # token = Token.objects.create(user=user_obj)
-            if user_obj is not None:
+            data = request.data    
+            serializer = LoginSerializer(data=self.request.data)
+            context={ 'request': self.request }
+            if serializer.is_valid(raise_exception=True):
+                user_obj = User.objects.filter(email=data.get('email')).first()    
                 token_obj, created = Token.objects.get_or_create(user=user_obj)
-                request.session['session_tCSRF Failed: CSRF token missingoken'] = token_obj.key     
-            print('you are logged in !############3')
-            return Response({"status": "success login token",'session_token':token_obj.key,})
+                print('yes####')
+                return Response({'status_code':status.HTTP_200_OK,'status_message':'Success','session_token':token_obj.key})
+                
+
         except Exception as e:
             return Response({'status_code':status.HTTP_500_INTERNAL_SERVER_ERROR,'status_message':str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 class LogoutView(APIView):
     def post(self, request, *args, **kwargs):
         try:
-            if request.session['session_token']:
-                token_obj=Token.objects.get(key=request.session['session_token'])
+                token_obj=Token.objects.filter(key=self.request.POST.get('session_token')).first()
                 token_obj.delete()  
-                del self.request.session['session_token']
-                self.request.session.modified = True
                 return Response({"status": "success logout token"})
         except Exception as e:
             return Response({'status_code':status.HTTP_500_INTERNAL_SERVER_ERROR,'status_message':str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response({"status": "success logout token"})
+
 
 
 class RegisterView(APIView):
+    permission_classes = [AllowAny]
+    # serializer_class = RegisterSerializer
+
     def post(self,request,*args,**kwargs):
         try:
             data=request.data
-            if not data.get('name'):return Response({'status_code':status.HTTP_400_BAD_REQUEST,'status_message':'name is required'})
-            if not data.get('email'):return Response({'status_code':status.HTTP_400_BAD_REQUEST,'status_message':'email is required'})
-            if not data.get('password'):return Response({'status_code':status.HTTP_400_BAD_REQUEST,'status_message':'password is required'})
-            user = User.objects.filter(email=data.get('email')).first()
-            if user:
-                return Response({'status_code':status.HTTP_200_OK,'status_message':'User already Exit !'})
-            user_obj = User(username=data.get('email'),first_name=data.get('name'),email=data.get('email'), password=make_password(data.get('password')))
-            user_obj.save()
-            return Response({'status_code':status.HTTP_200_OK,'status_message':'Success register saved'})
+            data.update({'username': data.get('email')})
+            serializer = RegisterSerializer(data=data)
+            if serializer.is_valid():
+                serializer.save()
+                return Response({'status_code':status.HTTP_200_OK,'status_message':'Success register saved'})
+            else:
+                return Response({'status_code':status.HTTP_200_OK,'status_message':serializer.errors})
         except Exception as e:
             return Response({'status_code':status.HTTP_500_INTERNAL_SERVER_ERROR,'status_message':str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
 
 class PostCreateView(APIView):
+    permission_classes = [IsAuthenticated]
     def post(self,request,*args,**kwargs):
         try:
-            if request.session['session_token']:
-                    
-                data=request.data
-                session_token = request.session['session_token']    
-                token = Token.objects.filter(key=session_token).first()
-                user_obj = User.objects.filter(email=token.user).first()
-                if user_obj:
-                    
-                    if not self.request.POST.get('title'):return Response({'status_code':status.HTTP_400_BAD_REQUEST,'status_message':'title is required'})
-                    description = self.request.POST.get('description')
-                    file = self.request.FILES.get('image')
-                    if  not description and not file:
-                        return Response({'status_code':status.HTTP_400_BAD_REQUEST,'status_message':'Image or Description is required'})
-                    post = Post(user=user_obj,title=self.request.POST.get('title'), description=self.request.POST.get('description'),image=self.request.FILES.get('image'))
-                    post.save()
+            user_obj = request.user
             
-                return Response({'status_code':status.HTTP_200_OK,'status_message':'Success post created'})
+            if user_obj:
+                if not self.request.POST.get('title'):return Response({'status_code':status.HTTP_400_BAD_REQUEST,'status_message':'title is required'})
+                description = self.request.POST.get('description')
+                file = self.request.FILES.get('image')
+                if  not description and not file:
+                    return Response({'status_code':status.HTTP_400_BAD_REQUEST,'status_message':'Image or Description is required'})
+                post = Post(user=user_obj,title=self.request.POST.get('title'), description=self.request.POST.get('description'),image=self.request.FILES.get('image'))
+                post.save()
+            return Response({'status_code':status.HTTP_200_OK,'status_message':'Success post created'})
         except Exception as e:
             return Response({'status_code':status.HTTP_500_INTERNAL_SERVER_ERROR,'status_message':str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 
 class PostDetailView(APIView):
-    response = {}
+    permission_classes = [IsAuthenticated]
     def get(self,request, pk, *args,**kwargs):
         try:
-            if request.session['session_token']:
-                session_token = request.session['session_token']    
-                token = Token.objects.filter(key=session_token).first()
-                user_obj = User.objects.filter(email=token.user).first()
-                if user_obj:
-                    post = user_obj.post_set.filter(id=pk).first()
-                    serialized_post = PostSerializer(post)
-                return Response({
-                    'status_code':status.HTTP_200_OK,
-                    'status_message':'Success',
-                    'post':serialized_post.data,
-                    })
+            # data = request.data
+            # print(data,'#######3',data.get('session_token'))
+
+            # session_token = data.get('session_token')    
+            # token = Token.objects.filter(key=session_token).first()
+            user_obj = request.user
+            if user_obj:
+                post = user_obj.post_set.filter(id=pk).first()
+                serialized_post = PostSerializer(post)
+            return Response({
+                'status_code':status.HTTP_200_OK,
+                'status_message':'Success',
+                'post':serialized_post.data,
+                })
         except Exception as e:
             return Response({'status_code':status.HTTP_500_INTERNAL_SERVER_ERROR,'status_message':str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+
+
 class VotePostView(APIView):
-    response = {}
+    permission_classes = [IsAuthenticated]
     def post(self,request, *args,**kwargs):
         try:
-            if request.session['session_token']:
-                data = request.data
-                session_token = request.session['session_token']    
-                token = Token.objects.filter(key=session_token).first()
-                user_obj = User.objects.filter(email=token.user).first()
-                if user_obj:
-                    post_obj = Post.objects.filter(id=data.get('post_id')).first()
-                    print(request.user,'##########',request.user.id)
-                    # vote_obj = Vote(post=post_obj, voter=request.user)
-                    # vote_obj.save()
-                    
-                    
-                return Response({
-                    'status_code':status.HTTP_200_OK,
-                    'status_message':'Success like or dislike',
-                    # 'post':serialized_post.data,
-                    })
+            data = request.data
+            user_obj = request.user
+            if user_obj:
+                post_obj = Post.objects.filter(id=data.get('post_id')).first()
+                # token_obj = Token.objects.filter(key=session_token).first()                    
+                print(post_obj,'###########2')
+                vote_exit = Vote.objects.filter(post=post_obj, voter=user_obj).first()
+                if vote_exit:
+                    vote_exit.delete()
+                else:    
+                    vote_obj = Vote(post=post_obj, voter=user_obj)
+                    vote_obj.save()
+            return Response({
+                'status_code':status.HTTP_200_OK,
+                'status_message':'Success',
+                })
         except Exception as e:
-            return Response({'status_code':status.HTTP_500_INTERNAL_SERVER_ERROR,'status_message':str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({'status_code':status.HTTP_500_INTERNAL_SERVER_ERROR,'status_message':'invalid session token !!'})
