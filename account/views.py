@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import  PostSerializer
 from .models import Post, Vote
-from django.contrib.auth import login
+from rest_framework.permissions import IsAuthenticated
 
 class get_posts(APIView):
     def get(self, request):
@@ -36,8 +36,7 @@ class LoginView(APIView):
                     return Response({'status_code':str(status.HTTP_400_BAD_REQUEST),'status_message':'password not valid !'})                   # token = Token.objects.create(user=user_obj)
             if user_obj is not None:
                 token_obj, created = Token.objects.get_or_create(user=user_obj)
-                login(request, user_obj)
-                request.session['session_token'] = token_obj.key     
+                request.session['session_tCSRF Failed: CSRF token missingoken'] = token_obj.key     
             print('you are logged in !############3')
             return Response({"status": "success login token",'session_token':token_obj.key,})
         except Exception as e:
