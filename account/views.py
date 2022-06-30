@@ -1,3 +1,5 @@
+from datetime import datetime
+import os
 from .serializers import LoginSerializer, PostSerializer, RegisterSerializer
 from django.contrib.auth.hashers import make_password,check_password
 from django.contrib.auth.models import User
@@ -31,7 +33,9 @@ class LoginView(APIView):
     def post(self, request, *args, **kwargs):
         try:
             data = request.data    
-            serializer = LoginSerializer(data=self.request.data)
+            print('########1', data)
+            serializer = LoginSerializer(data=request.data)
+            print('#######3',serializer)
             context={ 'request': self.request }
             if serializer.is_valid(raise_exception=True):
                 user_obj = User.objects.filter(email=data.get('email')).first()    
@@ -43,7 +47,7 @@ class LoginView(APIView):
         except Exception as e:
             return Response({'status_code':status.HTTP_500_INTERNAL_SERVER_ERROR,'status_message':str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-
+        return Response({'key':'value'})
 
 class LogoutView(APIView):
     def post(self, request, *args, **kwargs):
@@ -63,7 +67,10 @@ class RegisterView(APIView):
     def post(self,request,*args,**kwargs):
         try:
             data=request.data
-            data.update({'username': data.get('email')})
+            request.data._mutable = True
+            request.data['username'] = request.data.get('email')
+            request.data._mutable = False
+            # data.update({'username': data.get('email')})
             serializer = RegisterSerializer(data=data)
             if serializer.is_valid():
                 serializer.save()
@@ -80,17 +87,20 @@ class PostCreateView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self,request,*args,**kwargs):
         try:
-            user_obj = request.user
+            from datetime import datetime
             
-            if user_obj:
-                if not self.request.POST.get('title'):return Response({'status_code':status.HTTP_400_BAD_REQUEST,'status_message':'title is required'})
-                description = self.request.POST.get('description')
-                file = self.request.FILES.get('image')
-                if  not description and not file:
-                    return Response({'status_code':status.HTTP_400_BAD_REQUEST,'status_message':'Image or Description is required'})
-                post = Post(user=user_obj,title=self.request.POST.get('title'), description=self.request.POST.get('description'),image=self.request.FILES.get('image'))
-                post.save()
-            return Response({'status_code':status.HTTP_200_OK,'status_message':'Success post created'})
+            data = request.data
+            request.data._mutable = True
+            request.data['user'] = request.user.id
+            request.data._mutable = False
+            print('hello ######')
+
+            serializer = PostSerializer(data=data)
+            if serializer.is_valid(raise_exception=True):
+                serializer.save()
+
+
+            return Response({'status_code':status.HTTP_200_OK,'status_message':'Success post created', 'data':serializer.data})
         except Exception as e:
             return Response({'status_code':status.HTTP_500_INTERNAL_SERVER_ERROR,'status_message':str(e)},status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -100,11 +110,6 @@ class PostDetailView(APIView):
     permission_classes = [IsAuthenticated]
     def get(self,request, pk, *args,**kwargs):
         try:
-            # data = request.data
-            # print(data,'#######3',data.get('session_token'))
-
-            # session_token = data.get('session_token')    
-            # token = Token.objects.filter(key=session_token).first()
             user_obj = request.user
             if user_obj:
                 post = user_obj.post_set.filter(id=pk).first()
