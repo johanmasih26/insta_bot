@@ -1,6 +1,6 @@
 from datetime import datetime
 import os
-from .serializers import LoginSerializer, PostSerializer, RegisterSerializer
+from .serializers import LoginSerializer, PostSerializer, RegisterSerializer, VoteSerializer
 from django.contrib.auth.hashers import make_password,check_password
 from django.contrib.auth.models import User
 from django.http import HttpResponse
@@ -113,7 +113,7 @@ class PostDetailView(APIView):
             user_obj = request.user
             if user_obj:
                 post = user_obj.post_set.filter(id=pk).first()
-                serialized_post = PostSerializer(post)
+                serialized_post = PostSerializer(post, many=False)
             return Response({
                 'status_code':status.HTTP_200_OK,
                 'status_message':'Success',
@@ -128,18 +128,23 @@ class VotePostView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self,request, *args,**kwargs):
         try:
-            data = request.data
-            user_obj = request.user
-            if user_obj:
-                post_obj = Post.objects.filter(id=data.get('post_id')).first()
-                # token_obj = Token.objects.filter(key=session_token).first()                    
-                print(post_obj,'###########2')
-                vote_exit = Vote.objects.filter(post=post_obj, voter=user_obj).first()
-                if vote_exit:
-                    vote_exit.delete()
-                else:    
-                    vote_obj = Vote(post=post_obj, voter=user_obj)
-                    vote_obj.save()
+            post_obj = Post.objects.filter(id=request.data.get('post_id')).first()
+            request.data._mutable = True
+            request.data['post'] = post_obj.id
+            request.data['voter'] = request.user.id
+            request.data._mutable = False
+            data = request.data 
+
+            serialize = VoteSerializer(data=data)
+            if serialize.is_valid():
+                serialize.save()
+
+            # vote_exit = Vote.objects.filter(post=post_obj, voter=user_obj).first()
+            # if vote_exit:
+            #     vote_exit.delete()
+            # else:    
+            #     vote_obj = Vote(post=post_obj, voter=user_obj)
+            #     vote_obj.save()
             return Response({
                 'status_code':status.HTTP_200_OK,
                 'status_message':'Success',

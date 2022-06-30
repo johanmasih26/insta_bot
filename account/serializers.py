@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.validators import UniqueValidator
 from django.contrib.auth.password_validation import validate_password
-from .models import Post
+from .models import Post, Vote
 
 
 class PostSerializer(serializers.ModelSerializer):
@@ -27,8 +27,6 @@ class PostSerializer(serializers.ModelSerializer):
         
         if ext not in allowed_type:
             raise serializers.ValidationError(' only png required', code='authorization')
-        
-            
         return attrs
 
     
@@ -87,6 +85,25 @@ class LoginSerializer(serializers.Serializer):
     
     
 
+class VoteSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Vote
+        fields = ('__all__')
+
+    # def validate(self, attrs):
+    #     description = attrs.get('description')
+    #     image = attrs.get('image')
+    #     if not description and  not image:
+    #         raise serializers.ValidationError('Description or Image is required', code='authorization')
+    #     allowed_type = ['.png']
+    #     ext = os.path.splitext(attrs.get('image').name)[1]
+        
+    #     if ext not in allowed_type:
+    #         raise serializers.ValidationError(' only png required', code='authorization')
+        
+            
+    #     return attrs
 
 
 
