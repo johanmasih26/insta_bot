@@ -133,18 +133,21 @@ class VotePostView(APIView):
             request.data['post'] = post_obj.id
             request.data['voter'] = request.user.id
             request.data._mutable = False
-            data = request.data 
+            data1 = request.data 
 
-            serialize = VoteSerializer(data=data)
-            if serialize.is_valid():
-                serialize.save()
+            vote = Vote.objects.filter(post=post_obj, voter=request.user).first()
+            if vote:
+                vote.delete()
+            else:
+                serialize = VoteSerializer(data=data1)
+                if serialize.is_valid():
+                    serialize.save()
 
-            # vote_exit = Vote.objects.filter(post=post_obj, voter=user_obj).first()
-            # if vote_exit:
-            #     vote_exit.delete()
-            # else:    
-            #     vote_obj = Vote(post=post_obj, voter=user_obj)
-            #     vote_obj.save()
+
+
+
+
+
             return Response({
                 'status_code':status.HTTP_200_OK,
                 'status_message':'Success',
